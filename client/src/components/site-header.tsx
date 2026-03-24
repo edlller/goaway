@@ -2,6 +2,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useLocation } from "react-router-dom";
 import { NavActions } from "./header/nav-actions";
+import { UserMenu } from "./header/user-menu";
 import Notifications from "./header/notifications";
 import { ModeToggle } from "@/components/header/theme/toggle-theme";
 import BlockingTimer from "./header/BlockingTimer";
@@ -57,6 +58,10 @@ export function SiteHeader() {
       title: "Clients",
       description: "See connected clients and their activity"
     },
+    "/users": {
+      title: "Users",
+      description: "Manage user accounts and permissions"
+    },
     "/settings": {
       title: "Settings",
       description: "Customize server behavior and UI options"
@@ -100,6 +105,7 @@ export function SiteHeader() {
         <BlockingTimer />
         <ModeToggle />
         <Notifications />
+        <UserMenu />
         <NavActions />
       </div>
     </header>

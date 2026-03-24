@@ -191,7 +191,16 @@ func (api *API) setupAuthAndMiddleware() {
 
 func (api *API) setupAuth() {
 	if api.UserService.Exists("admin") {
-		return
+		// Check if we should reset the password
+		if resetPwd, exists := os.LookupEnv("GOAWAY_RESET_PASSWORD"); exists && resetPwd == "true" {
+			log.Info("Resetting admin password per environment variable")
+			if err := api.UserService.DeleteUser("admin"); err != nil {
+				log.Error("Unable to delete admin user: %v", err)
+				return
+			}
+		} else {
+			return
+		}
 	}
 
 	if err := api.UserService.CreateUser("admin", api.getOrGeneratePassword()); err != nil {

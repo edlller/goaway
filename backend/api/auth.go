@@ -18,6 +18,11 @@ func (api *API) registerAuthRoutes() {
 	api.router.GET("/api/authentication", api.getAuthentication)
 	api.routes.PUT("/password", api.updatePassword)
 
+	api.routes.GET("/users", api.getUsers)
+	api.routes.POST("/users", api.createUser)
+	api.routes.DELETE("/users", api.deleteUser)
+	api.routes.PUT("/users/password", api.updateUserPassword)
+
 	api.routes.POST("/apiKey", api.createAPIKey)
 	api.routes.GET("/apiKey", api.getAPIKeys)
 	api.routes.GET("/deleteApiKey", api.deleteAPIKey)
@@ -164,4 +169,98 @@ func (api *API) deleteAPIKey(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Deleted api key!"})
+}
+
+func (api *API) getUsers(c *gin.Context) {
+	users, err := api.UserService.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		return
+	}
+
+	userList := make([]gin.H, len(users))
+	for i, u := range users {
+		userList[i] = gin.H{
+			"username":  u.Username,
+			"createdAt": u.CreatedAt,
+			"updatedAt": u.UpdatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, userList)
+}
+
+func (api *API) createUser(c *gin.Context) {
+	type newUser struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	var u newUser
+	if err := c.BindJSON(&u); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	if err := api.UserService.ValidateCredentials(user.User{Username: u.Username, Password: u.Password}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if api.UserService.Exists(u.Username) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User already exists"})
+		return
+	}
+
+	if err := api.UserService.CreateUser(u.Username, u.Password); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
+}
+
+func (api *API) deleteUser(c *gin.Context) {
+	username := c.Query("username")
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username is required"})
+		return
+	}
+
+	if username == "admin" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete admin user"})
+		return
+	}
+
+	if err := api.UserService.DeleteUser(username); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+func (api *API) updateUserPassword(c *gin.Context) {
+	type passwordChange struct {
+		Username    string `json:"username"`
+		NewPassword string `json:"newPassword"`
+	}
+
+	var request passwordChange
+	if err := c.BindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	if request.Username == "" || request.NewPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username and new password are required"})
+		return
+	}
+
+	if err := api.UserService.UpdatePassword(request.Username, request.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully"})
 }

@@ -84,6 +84,22 @@ func (s *Service) UpdatePassword(username, newPassword string) error {
 	return nil
 }
 
+func (s *Service) GetAllUsers() ([]*database.User, error) {
+	return s.repository.FindAll()
+}
+
+func (s *Service) DeleteUser(username string) error {
+	log.Info("Deleting user '%s'", username)
+
+	if err := s.repository.Delete(username); err != nil {
+		log.Error("Failed to delete user: %v", err)
+		return err
+	}
+
+	log.Debug("User '%s' deleted successfully", username)
+	return nil
+}
+
 func (s *Service) ValidateCredentials(user User) error {
 	user.Username = strings.TrimSpace(user.Username)
 	user.Password = strings.TrimSpace(user.Password)

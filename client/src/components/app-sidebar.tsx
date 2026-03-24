@@ -21,6 +21,7 @@ import {
   PersonSimpleThrowIcon,
   SignOutIcon,
   TrafficSignIcon,
+  UserIcon,
   UsersIcon
 } from "@phosphor-icons/react";
 import * as React from "react";
@@ -73,6 +74,11 @@ const data = {
       title: "Clients",
       url: "/clients",
       icon: UsersIcon
+    },
+    {
+      title: "Users",
+      url: "/users",
+      icon: UserIcon
     },
     {
       title: "Settings",
