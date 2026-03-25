@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { GetRequest, PostRequest } from "@/util";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -13,7 +12,6 @@ import { DatabaseSection } from "@/app/settings/DatabaseSection";
 import { AlertsSection } from "@/app/settings/AlertSection";
 import { DynamicSettingsSection } from "@/app/settings/DynamicSettingsSection";
 import { SecuritySection } from "@/app/settings/SecuritySection";
-import { PasswordModal } from "@/app/settings/PasswordModal";
 import { ImportModal } from "@/app/settings/ImportModal";
 import { LoggingSection } from "@/app/settings/LoggingSection";
 
@@ -47,17 +45,11 @@ export function Settings() {
   const latestPreferences = useRef(preferences);
   const [isChanged, setIsChanged] = useState(false);
   const [modals, setModals] = useState({
-    password: false,
     apiKey: false,
     importConfirm: false,
     notifications: false
   });
   const [file, setFile] = useState<File | null>(null);
-  const [passwords, setPasswords] = useState({
-    current: "",
-    new: "",
-    confirm: ""
-  });
   const [loading, setLoading] = useState({
     main: true,
     import: false,
@@ -65,7 +57,6 @@ export function Settings() {
   });
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
   const [unsavedToastId, setUnsavedToastId] = useState<string | number | null>(
     null
   );
@@ -260,9 +251,6 @@ export function Settings() {
           <div className="space-y-4">
             {title === "Security" && (
               <SecuritySection
-                onPasswordClick={() =>
-                  setModals((prev) => ({ ...prev, password: true }))
-                }
                 onApiKeyClick={() =>
                   setModals((prev) => ({ ...prev, apiKey: true }))
                 }
@@ -320,39 +308,6 @@ export function Settings() {
           </div>
         </Card>
       ))}
-
-      <PasswordModal
-        open={modals.password}
-        onClose={() => setModals((prev) => ({ ...prev, password: false }))}
-        onSubmit={async () => {
-          if (!passwords.current) return setError("Current password required");
-          if (!passwords.new) return setError("New password required");
-          if (passwords.new !== passwords.confirm)
-            return setError("Passwords don't match");
-
-          try {
-            const { PutRequest } = await import("@/util");
-            const [status, response] = await PutRequest("password", {
-              currentPassword: passwords.current,
-              newPassword: passwords.new
-            });
-
-            if (status === 200) {
-              toast.success("Password updated");
-              setModals((prev) => ({ ...prev, password: false }));
-              navigate("/login");
-            } else {
-              setError(response || "Error updating password");
-            }
-          } catch {
-            setError("Failed to update password");
-          }
-        }}
-        passwords={passwords}
-        setPasswords={setPasswords}
-        error={error}
-        setError={setError}
-      />
 
       <ImportModal
         open={modals.importConfirm}

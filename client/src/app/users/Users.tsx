@@ -37,6 +37,7 @@ interface User {
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -47,7 +48,15 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchCurrentUser();
   }, []);
+
+  const fetchCurrentUser = async () => {
+    const [status, data] = await GetRequest("current-user");
+    if (status === 200 && data.username) {
+      setCurrentUser(data.username);
+    }
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -275,7 +284,7 @@ export default function UsersPage() {
                       >
                         <KeyIcon className="h-4 w-4" />
                       </Button>
-                      {user.username !== "admin" && (
+                      {currentUser && user.username !== currentUser && users.length > 1 && (
                         <Button
                           variant="ghost"
                           size="icon"

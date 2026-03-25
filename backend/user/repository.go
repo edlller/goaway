@@ -14,6 +14,9 @@ type Repository interface {
 	FindAll() ([]*database.User, error)
 	Delete(username string) error
 	UpdatePassword(username string, hashedPassword string) error
+	GetFirstUser() (*database.User, error)
+	UpdateMustResetPassword(username string, mustReset bool) error
+	GetUserByUsername(username string) (*database.User, error)
 }
 
 type repository struct {
@@ -93,4 +96,45 @@ func (r *repository) Delete(username string) error {
 	}
 
 	return nil
+}
+
+func (r *repository) GetFirstUser() (*database.User, error) {
+	var user database.User
+	err := r.db.Order("created_at ASC").First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+
+	if user.Username == "" {
+		return nil, errors.New("no users found")
+	}
+
+	return &user, nil
+}
+
+func (r *repository) UpdateMustResetPassword(username string, mustReset bool) error {
+	result := r.db.Model(&database.User{}).Where("username = ?", username).Update("must_reset_password", mustReset)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
+}
+
+func (r *repository) GetUserByUsername(username string) (*database.User, error) {
+	var user database.User
+	err := r.db.Where("username = ?", username).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+
+	if user.Username == "" {
+		return nil, errors.New("user not found")
+	}
+
+	return &user, nil
 }

@@ -15,6 +15,7 @@ import { Whitelist } from "./whitelist";
 import Users from "@/app/users/Users";
 import { GenerateQuote } from "@/quotes";
 import Login from "./login";
+import Setup from "./setup";
 import { FileXIcon } from "@phosphor-icons/react";
 import { ThemeProvider } from "@/components/header/theme/theme-provider";
 
@@ -44,6 +45,7 @@ function App() {
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/login" element={<Login quote={GenerateQuote()} />} />
+          <Route path="/setup" element={<Setup />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />

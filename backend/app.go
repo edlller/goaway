@@ -21,6 +21,7 @@ import (
 	"goaway/backend/user"
 	"goaway/backend/whitelist"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -156,6 +157,20 @@ func (a *Application) Start() error {
 	resolutionService := resolution.NewService(resolution.NewRepository(dbConn))
 	userService := user.NewService(user.NewRepository(dbConn))
 	whitelistService := whitelist.NewService(whitelist.NewRepository(dbConn))
+
+	// Check for GOAWAY_RESET_PASSWORD environment variable
+	if os.Getenv("GOAWAY_RESET_PASSWORD") == "true" {
+		log.Info("GOAWAY_RESET_PASSWORD environment variable detected, setting mustResetPassword for first user")
+		if firstUser, err := userService.GetFirstUser(); err == nil && firstUser != nil {
+			if err := userService.SetMustResetPassword(firstUser.Username, true); err != nil {
+				log.Error("Failed to set mustResetPassword for user %s: %v", firstUser.Username, err)
+			} else {
+				log.Info("Set mustResetPassword for user %s", firstUser.Username)
+			}
+		} else {
+			log.Warning("No users found to set mustResetPassword")
+		}
+	}
 
 	a.context.DNSServer.AlertService = alertService
 	a.context.DNSServer.AuditService = auditService

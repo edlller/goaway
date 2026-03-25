@@ -71,10 +71,11 @@ type MacAddress struct {
 }
 
 type User struct {
-	Username  string    `gorm:"primaryKey" json:"username" validate:"required,min=3,max=50"`
-	Password  string    `json:"password" validate:"required,min=8"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Username        string    `gorm:"primaryKey" json:"username" validate:"required,min=3,max=50"`
+	Password        string    `json:"password" validate:"required,min=8"`
+	MustResetPassword bool    `gorm:"default:false" json:"mustResetPassword"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 type APIKey struct {

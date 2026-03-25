@@ -190,22 +190,10 @@ func (api *API) setupAuthAndMiddleware() {
 }
 
 func (api *API) setupAuth() {
-	if api.UserService.Exists("admin") {
-		// Check if we should reset the password
-		if resetPwd, exists := os.LookupEnv("GOAWAY_RESET_PASSWORD"); exists && resetPwd == "true" {
-			log.Info("Resetting admin password per environment variable")
-			if err := api.UserService.DeleteUser("admin"); err != nil {
-				log.Error("Unable to delete admin user: %v", err)
-				return
-			}
-		} else {
-			return
-		}
-	}
-
-	if err := api.UserService.CreateUser("admin", api.getOrGeneratePassword()); err != nil {
-		log.Error("Unable to create new user: %v", err)
-	}
+	// No longer auto-create users
+	// Users are created via the setup wizard at /api/setup
+	// This function is kept for potential future use
+	log.Debug("Auth setup complete - users will be created via setup wizard")
 }
 
 func (api *API) getOrGeneratePassword() string {

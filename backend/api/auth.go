@@ -16,12 +16,18 @@ import (
 func (api *API) registerAuthRoutes() {
 	api.router.POST("/api/login", api.handleLogin)
 	api.router.GET("/api/authentication", api.getAuthentication)
+	api.router.POST("/api/setup", api.handleSetup)
+	api.router.GET("/api/users-exists", api.checkUsersExist)
 	api.routes.PUT("/password", api.updatePassword)
+	api.routes.POST("/reset-password", api.handleResetPassword)
 
 	api.routes.GET("/users", api.getUsers)
 	api.routes.POST("/users", api.createUser)
 	api.routes.DELETE("/users", api.deleteUser)
 	api.routes.PUT("/users/password", api.updateUserPassword)
+
+	// Current user endpoint - returns the currently logged-in username
+	api.routes.GET("/current-user", api.getCurrentUser)
 
 	api.routes.POST("/apiKey", api.createAPIKey)
 	api.routes.GET("/apiKey", api.getAPIKeys)
@@ -50,6 +56,18 @@ func (api *API) handleLogin(c *gin.Context) {
 	}
 
 	if api.UserService.Authenticate(loginUser.Username, loginUser.Password) {
+		// Check if user must reset password
+		dbUser, err := api.UserService.GetUserByUsername(loginUser.Username)
+		if err == nil && dbUser != nil && dbUser.MustResetPassword {
+			// User must reset password, return special response without setting cookie
+			c.JSON(http.StatusOK, gin.H{
+				"message":           "Password reset required",
+				"mustResetPassword": true,
+				"username":          loginUser.Username,
+			})
+			return
+		}
+
 		token, err := generateToken(loginUser.Username, api.Config.API.JWTSecret)
 		if err != nil {
 			log.Info("Token generation failed for user %s: %v", loginUser.Username, err)
@@ -73,6 +91,19 @@ func (api *API) handleLogin(c *gin.Context) {
 
 func (api *API) getAuthentication(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"enabled": api.Authentication})
+}
+
+// getCurrentUser returns the currently logged-in user's username
+func (api *API) getCurrentUser(c *gin.Context) {
+	// Get the currently logged-in user from the context (set by auth middleware)
+	currentUser, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	currentUsername := currentUser.(string)
+
+	c.JSON(http.StatusOK, gin.H{"username": currentUsername})
 }
 
 func (api *API) updatePassword(c *gin.Context) {
@@ -112,6 +143,56 @@ func (api *API) updatePassword(c *gin.Context) {
 
 	log.Warning("%s", logMsg)
 	c.Status(http.StatusOK)
+}
+
+// handleResetPassword handles password reset for users who must reset their password
+func (api *API) handleResetPassword(c *gin.Context) {
+	type resetPasswordRequest struct {
+		Username    string `json:"username"`
+		NewPassword string `json:"newPassword"`
+	}
+
+	var req resetPasswordRequest
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	if req.Username == "" || req.NewPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username and new password are required"})
+		return
+	}
+
+	// Verify the user exists and must reset password
+	dbUser, err := api.UserService.GetUserByUsername(req.Username)
+	if err != nil || dbUser == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User not found"})
+		return
+	}
+
+	if !dbUser.MustResetPassword {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Password reset not required for this user"})
+		return
+	}
+
+	// Update the password
+	if err := api.UserService.UpdatePassword(req.Username, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to update password"})
+		return
+	}
+
+	// Clear the MustResetPassword flag
+	if err := api.UserService.SetMustResetPassword(req.Username, false); err != nil {
+		log.Error("Failed to clear mustResetPassword for user %s: %v", req.Username, err)
+	}
+
+	logMsg := fmt.Sprintf("Password reset for user '%s'", req.Username)
+	api.DNSServer.AuditService.CreateAudit(&audit.Entry{
+		Topic:   audit.TopicUser,
+		Message: logMsg,
+	})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful"})
 }
 
 func (api *API) createAPIKey(c *gin.Context) {
@@ -227,8 +308,28 @@ func (api *API) deleteUser(c *gin.Context) {
 		return
 	}
 
-	if username == "admin" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete admin user"})
+	// Get the currently logged-in user
+	currentUser, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+	currentUsername := currentUser.(string)
+
+	// Check if trying to delete the currently logged-in user
+	if username == currentUsername {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
+		return
+	}
+
+	// Check if this is the last user
+	users, err := api.UserService.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check users"})
+		return
+	}
+	if len(users) <= 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete the last user"})
 		return
 	}
 
@@ -263,4 +364,66 @@ func (api *API) updateUserPassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully"})
+}
+
+func (api *API) checkUsersExist(c *gin.Context) {
+	users, err := api.UserService.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check users"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"exists": len(users) > 0})
+}
+
+func (api *API) handleSetup(c *gin.Context) {
+	// Check if users already exist
+	users, err := api.UserService.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check users"})
+		return
+	}
+
+	if len(users) > 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Setup already completed"})
+		return
+	}
+
+	type setupRequest struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	var req setupRequest
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Validate credentials
+	if err := api.UserService.ValidateCredentials(user.User{Username: req.Username, Password: req.Password}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create the admin user
+	if err := api.UserService.CreateUser(req.Username, req.Password); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		return
+	}
+
+	// Generate token and set cookie
+	token, err := generateToken(req.Username, api.Config.API.JWTSecret)
+	if err != nil {
+		log.Info("Token generation failed for user %s: %v", req.Username, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Authentication service temporarily unavailable",
+		})
+		return
+	}
+
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Credentials", "true")
+	setAuthCookie(c.Writer, token)
+	c.JSON(http.StatusCreated, gin.H{"message": "Setup completed successfully"})
 }

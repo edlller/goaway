@@ -64,8 +64,7 @@ export interface Misc {
 }
 
 export interface SetModalsType {
-  password: false;
-  apiKey: false;
-  importConfirm: false;
-  notifications: false;
+  apiKey: boolean;
+  importConfirm: boolean;
+  notifications: boolean;
 }

@@ -3,6 +3,8 @@ requests.json
 counters.json
 main
 goaway
+goaway.exe
+client/.fake
 *.db**
 .vite
 dist

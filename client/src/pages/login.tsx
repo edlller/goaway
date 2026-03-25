@@ -106,6 +106,18 @@ export default function Login({ className, quote, ...props }: LoginProps) {
   };
 
   useEffect(() => {
+    async function checkUsersExist() {
+      try {
+        const [status, data] = await GetRequest("users-exists", true);
+        if (status === 200 && data && !data.exists) {
+          navigate("/setup");
+          return;
+        }
+      } catch {
+        // Ignore errors, show login page
+      }
+    }
+
     async function fetchData() {
       try {
         const [, data] = await GetRequest("server");
@@ -125,8 +137,9 @@ export default function Login({ className, quote, ...props }: LoginProps) {
       }, 0);
     }
 
+    checkUsersExist();
     fetchData();
-  }, []);
+  }, [navigate]);
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
 

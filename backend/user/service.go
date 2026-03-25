@@ -100,6 +100,18 @@ func (s *Service) DeleteUser(username string) error {
 	return nil
 }
 
+func (s *Service) GetFirstUser() (*database.User, error) {
+	return s.repository.GetFirstUser()
+}
+
+func (s *Service) SetMustResetPassword(username string, mustReset bool) error {
+	return s.repository.UpdateMustResetPassword(username, mustReset)
+}
+
+func (s *Service) GetUserByUsername(username string) (*database.User, error) {
+	return s.repository.GetUserByUsername(username)
+}
+
 func (s *Service) ValidateCredentials(user User) error {
 	user.Username = strings.TrimSpace(user.Username)
 	user.Password = strings.TrimSpace(user.Password)
